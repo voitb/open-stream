@@ -1,0 +1,25 @@
+# Core server
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.5.0  # Enhanced validation features
+pydantic[email]>=2.5.0  # Email validation support
+
+# Security and validation
+email-validator>=2.1.0  # Email validation
+python-multipart>=0.0.6  # Form data parsing
+
+# Hugging Face & AI
+transformers>=4.36.0
+torch>=2.1.0  # lub tensorflow>=2.15.0
+accelerate>=0.25.0  # Przyspiesza ładowanie modeli
+sentencepiece>=0.1.99  # Dla niektórych tokenizers
+protobuf>=3.20.0  # Dependency dla niektórych modeli
+
+# Opcjonalne ale przydatne
+numpy>=1.24.0
+scipy>=1.11.0
+huggingface-hub>=0.20.0  # Do pobierania modeli
+
+# Development and monitoring
+python-json-logger>=2.0.0  # Structured logging (optional)
+psutil>=5.9.0  # Performance monitoring

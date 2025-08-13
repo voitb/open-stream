@@ -1,0 +1,54 @@
+appId: com.yourcompany.openstream
+productName: Open Stream
+directories:
+  buildResources: build
+  
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  
+extraResources:
+  - from: server
+    to: server
+    filter:
+      - "**/*.py"
+      - "requirements.txt"
+      - "!venv/**/*"
+      - "!__pycache__"
+
+asarUnpack:
+  - resources/**
+
+win:
+  executableName: OpenStream
+  target: nsis
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  artifactName: ${name}-${version}-setup.${ext}
+
+mac:
+  category: public.app-category.entertainment
+  target: dmg
+  icon: build/icon.icns
+
+dmg:
+  artifactName: ${name}-${version}.${ext}
+
+linux:
+  target: AppImage
+  maintainer: Your Name
+  category: Utility
+
+appImage:
+  artifactName: ${name}-${version}.${ext}
+
+npmRebuild: false

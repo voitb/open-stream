@@ -1,0 +1,361 @@
+openapi: 3.1.0
+info:
+  title: Open Stream AI API
+  description: |
+    AI-powered streaming assistant with toxicity detection, sentiment analysis, and chat moderation.
+    This API provides real-time content analysis using state-of-the-art machine learning models.
+  version: 2.0.0
+  contact:
+    name: Open Stream API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://127.0.0.1:{port}
+    description: Local development server
+    variables:
+      port:
+        default: '55555'
+        description: Dynamic port assigned by Electron main process
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check server status and AI model availability
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  value:
+                    status: "ok"
+                    port: 55555
+                    ai_enabled: true
+                    version: "2.0.0"
+
+  /analyze:
+    post:
+      summary: Analyze text content
+      description: |
+        Perform comprehensive AI analysis of text content including:
+        - Toxicity detection using BERT models
+        - Sentiment analysis with confidence scoring
+        - Optional emotion detection
+        
+        Falls back to rule-based analysis if AI models are unavailable.
+      operationId: analyzeText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeRequest'
+            examples:
+              positive_text:
+                value:
+                  text: "This is amazing content!"
+                  options: {}
+              toxic_text:
+                value:
+                  text: "You are stupid and worthless"
+                  options: {}
+      responses:
+        '200':
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeResponse'
+              examples:
+                safe_content:
+                  value:
+                    text: "This is amazing content!"
+                    toxic: false
+                    toxicity_score: 0.1
+                    sentiment: "positive"
+                    confidence: 0.95
+                    ai_enabled: true
+                toxic_content:
+                  value:
+                    text: "You are stupid and worthless"
+                    toxic: true
+                    toxicity_score: 0.85
+                    sentiment: "negative"
+                    confidence: 0.92
+                    ai_enabled: true
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chat/process:
+    post:
+      summary: Process chat message
+      description: |
+        Process and moderate chat messages with AI-powered analysis.
+        Returns moderation actions and reasons.
+      operationId: processChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              normal_message:
+                value:
+                  username: "user123"
+                  message: "Hello everyone!"
+                  channel: "general"
+                  timestamp: 1692345600
+      responses:
+        '200':
+          description: Chat message processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                allowed_message:
+                  value:
+                    message_id: "msg_abc123"
+                    action: "allow"
+                    reason: null
+                moderated_message:
+                  value:
+                    message_id: "msg_def456"
+                    action: "timeout"
+                    reason: "Toxic content detected"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /shutdown:
+    post:
+      summary: Shutdown server
+      description: Gracefully shutdown the Python server process
+      operationId: shutdownServer
+      responses:
+        '200':
+          description: Shutdown initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "shutting down"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - port
+        - ai_enabled
+        - version
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          description: Server health status
+        port:
+          type: integer
+          minimum: 1024
+          maximum: 65535
+          description: Server port number
+        ai_enabled:
+          type: boolean
+          description: Whether AI models are loaded and available
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          description: API version
+
+    AnalyzeRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Text content to analyze
+          example: "This is a sample message"
+        options:
+          type: object
+          additionalProperties: true
+          description: Optional analysis parameters
+          default: {}
+
+    AnalyzeResponse:
+      type: object
+      required:
+        - text
+        - toxic
+        - toxicity_score
+        - sentiment
+        - confidence
+        - ai_enabled
+      properties:
+        text:
+          type: string
+          description: Original input text
+        toxic:
+          type: boolean
+          description: Whether content is classified as toxic
+        toxicity_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Toxicity confidence score (0-1)
+        sentiment:
+          type: string
+          enum: [positive, negative, neutral]
+          description: Detected sentiment category
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Sentiment analysis confidence score
+        ai_enabled:
+          type: boolean
+          description: Whether AI models were used for analysis
+
+    ChatRequest:
+      type: object
+      required:
+        - username
+        - message
+        - channel
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Username of message sender
+          example: "user123"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Chat message content
+          example: "Hello everyone!"
+        channel:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Chat channel/room identifier
+          example: "general"
+        timestamp:
+          type: integer
+          minimum: 0
+          description: Unix timestamp of message (optional)
+          example: 1692345600
+
+    ChatResponse:
+      type: object
+      required:
+        - message_id
+        - action
+      properties:
+        message_id:
+          type: string
+          description: Unique identifier for the processed message
+          example: "msg_abc123"
+        action:
+          type: string
+          enum: [allow, warning, timeout, ban]
+          description: Recommended moderation action
+        reason:
+          type: string
+          nullable: true
+          description: Explanation for moderation action
+          example: "Toxic content detected"
+
+    ValidationError:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                description: Location of validation error
+              msg:
+                type: string
+                description: Error message
+              type:
+                type: string
+                description: Error type
+              ctx:
+                type: object
+                description: Additional context
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "Internal server error"
+        error_code:
+          type: string
+          description: Machine-readable error code
+        timestamp:
+          type: string
+          format: date-time
+          description: Error occurrence timestamp
+
+  securitySchemes:
+    LocalAccess:
+      type: apiKey
+      in: header
+      name: X-Local-Access
+      description: |
+        Local access security for Electron apps.
+        Not required for localhost development.
+
+security:
+  - LocalAccess: []
+  - {} # Optional security for local development
+
+tags:
+  - name: health
+    description: Server health and status
+  - name: analysis
+    description: AI content analysis
+  - name: chat
+    description: Chat moderation
+  - name: system
+    description: System control

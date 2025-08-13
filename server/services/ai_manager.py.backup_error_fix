@@ -1,0 +1,415 @@
+import os
+import time
+import psutil
+import asyncio
+import hashlib
+import threading
+from pathlib import Path
+from typing import Optional, Dict, Any, Union, List
+from collections import OrderedDict
+import torch
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ModelLoadingStatus:
+    """Track model loading status for progressive loading"""
+    UNLOADED = "unloaded"
+    LOADING = "loading" 
+    LOADED = "loaded"
+    ERROR = "error"
+
+class MemoryManager:
+    """Manages memory usage with LRU cache for AI models"""
+    
+    def __init__(self, max_memory_gb: float = 1.0):
+        self.max_memory_bytes = max_memory_gb * 1024 * 1024 * 1024
+        self.model_usage_order = OrderedDict()
+        self.model_memory_usage = {}
+        
+    def record_model_usage(self, model_name: str):
+        """Record that a model was used (move to end of LRU)"""
+        if model_name in self.model_usage_order:
+            del self.model_usage_order[model_name]
+        self.model_usage_order[model_name] = time.time()
+    
+    def get_current_memory_usage(self) -> int:
+        """Get current process memory usage in bytes"""
+        return psutil.Process().memory_info().rss
+    
+    def should_cleanup_memory(self) -> bool:
+        """Check if memory cleanup is needed"""
+        return self.get_current_memory_usage() > self.max_memory_bytes
+    
+    def get_models_to_unload(self, available_models: List[str]) -> List[str]:
+        """Get list of models to unload based on LRU"""
+        if not self.should_cleanup_memory():
+            return []
+        
+        # Sort by usage time (oldest first)
+        models_by_usage = sorted(
+            [(model, usage_time) for model, usage_time in self.model_usage_order.items() if model in available_models],
+            key=lambda x: x[1]
+        )
+        
+        # Return oldest models (up to half the loaded models)
+        num_to_unload = max(1, len(models_by_usage) // 2)
+        return [model for model, _ in models_by_usage[:num_to_unload]]
+
+class AnalysisCache:
+    """Cache for analysis results to avoid reprocessing identical requests"""
+    
+    def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600):
+        self.cache = OrderedDict()
+        self.access_times = {}
+        self.max_size = max_size
+        self.ttl_seconds = ttl_seconds
+    
+    def _generate_key(self, text: str, model_type: str, options: Dict[str, Any] = None) -> str:
+        """Generate cache key for text and analysis options"""
+        content = f"{text}:{model_type}:{options or {}}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def get(self, text: str, model_type: str, options: Dict[str, Any] = None) -> Optional[Any]:
+        """Get cached result if available and not expired"""
+        key = self._generate_key(text, model_type, options)
+        
+        if key in self.cache:
+            access_time = self.access_times.get(key, 0)
+            if time.time() - access_time < self.ttl_seconds:
+                # Move to end (most recently used)
+                result = self.cache[key]
+                del self.cache[key]
+                self.cache[key] = result
+                self.access_times[key] = time.time()
+                return result
+            else:
+                # Expired, remove
+                del self.cache[key]
+                del self.access_times[key]
+        
+        return None
+    
+    def set(self, text: str, model_type: str, result: Any, options: Dict[str, Any] = None):
+        """Cache analysis result"""
+        key = self._generate_key(text, model_type, options)
+        
+        # Remove oldest entries if at capacity
+        while len(self.cache) >= self.max_size:
+            oldest_key = next(iter(self.cache))
+            del self.cache[oldest_key]
+            del self.access_times[oldest_key]
+        
+        self.cache[key] = result
+        self.access_times[key] = time.time()
+
+class OptimizedAIManager:
+    """High-performance AI manager with progressive loading, memory management, and caching"""
+    
+    def __init__(self):
+        # Set optimal cache directory
+        self.models_dir = self._get_optimal_cache_dir()
+        self.models_dir.mkdir(exist_ok=True)
+        
+        # Configure Hugging Face environment
+        os.environ['TRANSFORMERS_CACHE'] = str(self.models_dir)
+        os.environ['HF_HOME'] = str(self.models_dir)
+        os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid warnings
+        
+        # Optimize PyTorch for CPU inference
+        self._configure_pytorch()
+        
+        # Model management
+        self.models = {}
+        self.model_status = {}
+        self.model_loading_locks = {}
+        
+        # Performance optimizations
+        self.memory_manager = MemoryManager(max_memory_gb=1.0)
+        self.analysis_cache = AnalysisCache()
+        
+        # Model priority for loading (toxicity first for safety)
+        self.model_priority = ['toxicity', 'sentiment', 'emotion', 'hate_speech']
+        
+        # Background loading
+        self._background_loading_active = False
+        self._initialize_models_async()
+        
+        logger.info(f"✅ Optimized AI Manager initialized")
+        logger.info(f"📁 Models cache: {self.models_dir}")
+        logger.info(f"🧠 Memory limit: {self.memory_manager.max_memory_bytes / (1024**3):.1f}GB")
+        logger.info(f"⚡ Cache size: {self.analysis_cache.max_size} entries")
+    
+    def _get_optimal_cache_dir(self) -> Path:
+        """Choose fastest available storage for model cache"""
+        base_dir = Path(__file__).parent.parent / "models"
+        
+        # Try to detect if we're on SSD by checking common SSD paths
+        potential_ssd_paths = [
+            Path.home() / ".cache" / "open-stream-models",
+            Path("/tmp") / "open-stream-models" if os.name != 'nt' else None,
+        ]
+        
+        # Filter out None values and check which paths exist or can be created
+        for path in filter(None, potential_ssd_paths):
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+                # Simple write test to ensure we have permissions
+                test_file = path / "test_write"
+                test_file.write_text("test")
+                test_file.unlink()
+                return path
+            except (PermissionError, OSError):
+                continue
+        
+        return base_dir
+    
+    def _configure_pytorch(self):
+        """Configure PyTorch for optimal CPU inference"""
+        # CPU optimization
+        cpu_count = os.cpu_count() or 4
+        torch.set_num_threads(min(4, cpu_count))  # Use up to 4 threads
+        torch.set_num_interop_threads(2)
+        
+        # Enable optimizations if available
+        try:
+            torch.backends.mkldnn.enabled = True
+        except AttributeError:
+            pass
+        
+        # Set optimal device
+        self.device = 0 if torch.cuda.is_available() else -1
+        logger.info(f"🖥️ Using device: {'GPU' if self.device == 0 else 'CPU'}")
+        logger.info(f"🧵 PyTorch threads: {torch.get_num_threads()}")
+    
+    def _initialize_models_async(self):
+        """Start background model loading in priority order"""
+        def background_loader():
+            self._background_loading_active = True
+            logger.info("🚀 Starting background model loading...")
+            
+            for model_type in self.model_priority:
+                if not self._background_loading_active:
+                    break
+                
+                try:
+                    logger.info(f"📥 Loading {model_type} model in background...")
+                    self._ensure_model_loaded(model_type, background=True)
+                    # Small delay to prevent CPU spike
+                    time.sleep(1)
+                except Exception as e:
+                    logger.warning(f"Background loading failed for {model_type}: {e}")
+            
+            logger.info("✅ Background model loading complete")
+            self._background_loading_active = False
+        
+        # Start background loading thread
+        loading_thread = threading.Thread(target=background_loader, daemon=True)
+        loading_thread.start()
+    
+    def _ensure_model_loaded(self, model_type: str, background: bool = False) -> bool:
+        """Ensure a model is loaded, with thread-safe loading"""
+        if model_type in self.models:
+            self.memory_manager.record_model_usage(model_type)
+            return True
+        
+        # Check if already loading
+        if model_type not in self.model_loading_locks:
+            self.model_loading_locks[model_type] = threading.Lock()
+        
+        with self.model_loading_locks[model_type]:
+            # Double-check after acquiring lock
+            if model_type in self.models:
+                self.memory_manager.record_model_usage(model_type)
+                return True
+            
+            # Check memory before loading
+            if self.memory_manager.should_cleanup_memory():
+                self._cleanup_unused_models()
+            
+            try:
+                self.model_status[model_type] = ModelLoadingStatus.LOADING
+                if not background:
+                    logger.info(f"📥 Loading {model_type} model...")
+                
+                model = self._load_model_by_type(model_type)
+                self.models[model_type] = model
+                self.model_status[model_type] = ModelLoadingStatus.LOADED
+                self.memory_manager.record_model_usage(model_type)
+                
+                if not background:
+                    logger.info(f"✅ {model_type.title()} model loaded successfully")
+                
+                return True
+                
+            except Exception as e:
+                self.model_status[model_type] = ModelLoadingStatus.ERROR
+                logger.error(f"❌ Failed to load {model_type} model: {e}")
+                return False
+    
+    def _load_model_by_type(self, model_type: str):
+        """Load specific model type with optimized settings"""
+        model_configs = {
+            'toxicity': {
+                'task': 'text-classification',
+                'model': 'unitary/toxic-bert',
+                'max_length': 512
+            },
+            'sentiment': {
+                'task': 'sentiment-analysis', 
+                'model': 'distilbert-base-uncased-finetuned-sst-2-english',
+                'max_length': 256
+            },
+            'emotion': {
+                'task': 'text-classification',
+                'model': 'j-hartmann/emotion-english-distilroberta-base',
+                'max_length': 256
+            },
+            'hate_speech': {
+                'task': 'text-classification',
+                'model': 'Hate-speech-CNERG/dehatebert-mono-english',
+                'max_length': 512
+            }
+        }
+        
+        config = model_configs.get(model_type)
+        if not config:
+            raise ValueError(f"Unknown model type: {model_type}")
+        
+        # Optimized model loading parameters
+        model_kwargs = {
+            "cache_dir": self.models_dir,
+            "torch_dtype": torch.float32,  # Optimal for CPU
+            "use_fast_tokenizer": True,
+            "low_cpu_mem_usage": True
+        }
+        
+        return pipeline(
+            config['task'],
+            model=config['model'],
+            device=self.device,
+            model_kwargs=model_kwargs,
+            max_length=config['max_length'],
+            truncation=True,
+            batch_size=1  # Optimize for single request latency
+        )
+    
+    def _cleanup_unused_models(self):
+        """Unload least recently used models to free memory"""
+        models_to_unload = self.memory_manager.get_models_to_unload(list(self.models.keys()))
+        
+        for model_name in models_to_unload:
+            if model_name in self.models:
+                logger.info(f"🧹 Unloading {model_name} model to free memory")
+                del self.models[model_name]
+                self.model_status[model_name] = ModelLoadingStatus.UNLOADED
+                
+                # Force garbage collection
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+    
+    def analyze_with_caching(self, text: str, model_type: str, options: Dict[str, Any] = None) -> Any:
+        """Analyze text with result caching"""
+        # Check cache first
+        cached_result = self.analysis_cache.get(text, model_type, options)
+        if cached_result is not None:
+            return cached_result
+        
+        # Ensure model is loaded
+        if not self._ensure_model_loaded(model_type):
+            raise RuntimeError(f"Failed to load {model_type} model")
+        
+        # Perform analysis
+        model = self.models[model_type]
+        result = model(text)
+        
+        # Cache result
+        self.analysis_cache.set(text, model_type, result, options)
+        
+        return result
+    
+    def get_toxicity_model(self):
+        """Get or load toxicity detection model"""
+        if not self._ensure_model_loaded('toxicity'):
+            raise RuntimeError("Failed to load toxicity model")
+        return self.models['toxicity']
+    
+    def get_sentiment_model(self):
+        """Get or load sentiment analysis model"""
+        if not self._ensure_model_loaded('sentiment'):
+            raise RuntimeError("Failed to load sentiment model")
+        return self.models['sentiment']
+    
+    def get_emotion_model(self):
+        """Get or load emotion detection model"""
+        if not self._ensure_model_loaded('emotion'):
+            raise RuntimeError("Failed to load emotion model")
+        return self.models['emotion']
+    
+    def get_hate_speech_model(self):
+        """Get or load hate speech detection model"""
+        if not self._ensure_model_loaded('hate_speech'):
+            raise RuntimeError("Failed to load hate speech model")
+        return self.models['hate_speech']
+    
+    def analyze_toxicity(self, text: str, use_cache: bool = True) -> Dict[str, Any]:
+        """Analyze toxicity with caching support"""
+        if use_cache:
+            return self.analyze_with_caching(text, 'toxicity')
+        else:
+            model = self.get_toxicity_model()
+            return model(text)
+    
+    def analyze_sentiment(self, text: str, use_cache: bool = True) -> Dict[str, Any]:
+        """Analyze sentiment with caching support"""
+        if use_cache:
+            return self.analyze_with_caching(text, 'sentiment')
+        else:
+            model = self.get_sentiment_model()
+            return model(text)
+    
+    def get_model_status(self) -> Dict[str, str]:
+        """Get current status of all models"""
+        status = {}
+        for model_type in self.model_priority:
+            if model_type in self.models:
+                status[model_type] = ModelLoadingStatus.LOADED
+            elif model_type in self.model_status:
+                status[model_type] = self.model_status[model_type]
+            else:
+                status[model_type] = ModelLoadingStatus.UNLOADED
+        return status
+    
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get performance and memory statistics"""
+        memory_info = psutil.Process().memory_info()
+        
+        return {
+            "memory_usage_mb": round(memory_info.rss / 1024 / 1024, 1),
+            "memory_limit_mb": round(self.memory_manager.max_memory_bytes / 1024 / 1024, 1),
+            "models_loaded": len(self.models),
+            "models_status": self.get_model_status(),
+            "cache_size": len(self.analysis_cache.cache),
+            "cache_hit_rate": getattr(self.analysis_cache, '_hit_rate', 0.0),
+            "background_loading": self._background_loading_active
+        }
+    
+    def preload_models(self, model_types: List[str] = None):
+        """Preload specific models or all models"""
+        models_to_load = model_types or self.model_priority
+        
+        for model_type in models_to_load:
+            try:
+                self._ensure_model_loaded(model_type)
+            except Exception as e:
+                logger.warning(f"Failed to preload {model_type}: {e}")
+    
+    def stop_background_loading(self):
+        """Stop background model loading"""
+        self._background_loading_active = False
+
+# Singleton instance
+ai_manager = OptimizedAIManager()
