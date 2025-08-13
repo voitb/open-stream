@@ -1,8 +1,33 @@
+# Dependencies
 node_modules
-server/venv
-server/models
-dist
-out
+server/venv/
+
+# AI Models and Cache (Large Files)
+server/models/models--*/
+server/models/xet/
+~/.cache/open-stream-models/
+
+# Build outputs
+dist/
+out/
+
+# Logs
+*.log*
+server/security.log
+server/server.log
+
+# Cache files
+server/__pycache__/
+**/*.pyc
+**/__pycache__/
+
+# System files
 .DS_Store
 .eslintcache
-*.log*
+
+# IDE
+.vscode/
+.idea/
+
+# Keep Python model code but exclude data
+# server/models/__init__.py and server/models/validation.py will be included
