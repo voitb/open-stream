@@ -524,11 +524,11 @@ export class Server {
     })
     
     this.serverProcess.stdout?.on('data', (data) => {
-      console.log(`[Server]: ${data.toString()}`)
+      this.handleServerOutput(data.toString(), 'stdout')
     })
     
     this.serverProcess.stderr?.on('data', (data) => {
-      console.error(`[Server Error]: ${data.toString()}`)
+      this.handleServerOutput(data.toString(), 'stderr')
     })
     
     this.serverProcess.on('error', (error) => {
@@ -554,6 +554,64 @@ export class Server {
     })
     
     await this.waitForServer()
+  }
+
+  /**
+   * Handle server output with proper log level parsing
+   * Parses Python log format: "2025-08-13 17:13:26,390 - services.ai_manager - INFO - 🖥️ Using device: CPU"
+   */
+  private handleServerOutput(data: string, source: 'stdout' | 'stderr'): void {
+    const lines = data.toString().trim().split('\n')
+    
+    for (const line of lines) {
+      if (!line.trim()) continue
+      
+      // Try to extract log level from Python log format
+      // Format: YYYY-MM-DD HH:MM:SS,mmm - module_name - LEVEL - message
+      const pythonLogMatch = line.match(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} - .+ - (DEBUG|INFO|WARNING|ERROR|CRITICAL) - (.+)/)
+      
+      if (pythonLogMatch) {
+        const [, logLevel, message] = pythonLogMatch
+        
+        switch (logLevel) {
+          case 'DEBUG':
+            console.log(`[Server Debug]: ${message}`)
+            break
+          case 'INFO':
+            console.log(`[Server]: ${message}`)
+            break
+          case 'WARNING':
+            console.warn(`[Server Warning]: ${message}`)
+            break
+          case 'ERROR':
+          case 'CRITICAL':
+            console.error(`[Server Error]: ${message}`)
+            break
+          default:
+            // Fallback for unknown log levels
+            console.log(`[Server ${logLevel}]: ${message}`)
+        }
+      } else {
+        // Not a Python log format, use source-based fallback
+        if (source === 'stderr') {
+          // Check if it looks like an error message
+          const looksLikeError = line.toLowerCase().includes('error') ||
+                                line.toLowerCase().includes('exception') ||
+                                line.toLowerCase().includes('traceback') ||
+                                line.toLowerCase().includes('failed')
+          
+          if (looksLikeError) {
+            console.error(`[Server Error]: ${line}`)
+          } else {
+            // Treat non-error stderr as info (common for Python apps)
+            console.log(`[Server]: ${line}`)
+          }
+        } else {
+          // stdout - treat as info
+          console.log(`[Server]: ${line}`)
+        }
+      }
+    }
   }
 
   private async waitForServer(maxAttempts = 30): Promise<void> {
