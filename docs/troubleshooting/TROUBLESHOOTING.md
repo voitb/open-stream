@@ -15,7 +15,7 @@ This guide covers the most frequent issues encountered with Open Stream and prov
 
 **Diagnostic Steps**:
 ```bash
-# Check if Node.js and dependencies are properly installed
+# Check if Node.js and PNPM are properly installed
 node --version  # Should be 18+
 pnpm --version  # Should be 8+
 
@@ -34,7 +34,7 @@ DEBUG=* pnpm dev
 
 1. **Missing Dependencies**:
 ```bash
-# Reinstall all dependencies
+# Reinstall all dependencies using PNPM
 rm -rf node_modules pnpm-lock.yaml
 pnpm install
 
@@ -57,10 +57,23 @@ pnpm typecheck:web
 3. **Electron Version Conflicts**:
 ```bash
 # Check Electron installation
-npx electron --version
+pnpm exec electron --version
 
 # Reinstall Electron if needed
 pnpm add -D electron@latest
+```
+
+4. **PNPM-Specific Issues**:
+```bash
+# Clear PNPM cache and store
+pnpm store prune
+
+# Check PNPM configuration
+pnpm config list
+
+# Verify PNPM installation
+which pnpm
+pnpm --version
 ```
 
 ### Issue: Python Server Won't Start
@@ -413,7 +426,7 @@ def cleanup_unused_models(self):
 
 **Diagnostic Steps**:
 ```bash
-# Check build step by step
+# Check build step by step using PNPM
 pnpm typecheck
 pnpm build
 pnpm build:unpack
@@ -454,6 +467,17 @@ export CSC_IDENTITY_AUTO_DISCOVERY=false  # Disable auto-signing
 
 # For Windows builds
 # Ensure certificate is properly configured
+```
+
+4. **PNPM Build Dependencies**:
+```bash
+# Clear PNPM cache and rebuild
+pnpm store prune
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+
+# Check for native dependencies
+pnpm rebuild
 ```
 
 ### Issue: Distributed App Won't Start
@@ -540,10 +564,10 @@ Ctrl+Shift+P → "TypeScript: Reload Projects"
 
 2. **Check TypeScript Configuration**:
 ```bash
-# Verify tsconfig files are valid
-npx tsc --noEmit -p tsconfig.json
-npx tsc --noEmit -p tsconfig.web.json
-npx tsc --noEmit -p tsconfig.node.json
+# Verify tsconfig files are valid using PNPM
+pnpm exec tsc --noEmit -p tsconfig.json
+pnpm exec tsc --noEmit -p tsconfig.web.json
+pnpm exec tsc --noEmit -p tsconfig.node.json
 ```
 
 3. **Update Type Definitions**:
@@ -551,6 +575,62 @@ npx tsc --noEmit -p tsconfig.node.json
 pnpm add -D @types/node@latest
 pnpm add -D @types/react@latest
 pnpm add -D @types/react-dom@latest
+```
+
+### Issue: PNPM-Specific Problems
+
+**Symptoms**:
+- Package installation failures
+- Module resolution errors
+- Peer dependency warnings
+
+**Solutions**:
+
+1. **PNPM Cache Issues**:
+```bash
+# Clear PNPM store and cache
+pnpm store prune
+
+# Remove node_modules and reinstall
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+2. **Peer Dependency Issues**:
+```bash
+# Check peer dependency requirements
+pnpm install --dev
+
+# Configure peer dependency rules in package.json:
+{
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": ["react-native"],
+      "allowedVersions": {
+        "react": "19"
+      }
+    }
+  }
+}
+```
+
+3. **Module Hoisting Issues**:
+```bash
+# Create/edit .npmrc file for problematic packages
+echo 'shamefully-hoist=true' >> .npmrc
+
+# Or use public-hoist-pattern for specific packages
+echo 'public-hoist-pattern[]=*eslint*' >> .npmrc
+```
+
+4. **PNPM Store Corruption**:
+```bash
+# Verify PNPM store integrity
+pnpm store status
+
+# Rebuild store if needed
+pnpm store prune --force
+pnpm install
 ```
 
 ## Diagnostic Tools and Commands
@@ -569,10 +649,10 @@ echo "=== System ==="
 uname -a
 echo
 
-echo "=== Node.js ==="
+echo "=== Node.js and PNPM ==="
 node --version
-npm --version
 pnpm --version
+pnpm store path
 echo
 
 echo "=== Python ==="
@@ -601,6 +681,12 @@ echo
 echo "=== Open Stream Files ==="
 ls -la
 ls -la server/ 2>/dev/null || echo "Server directory not found"
+echo
+
+echo "=== PNPM Configuration ==="
+pnpm config list
+echo "PNPM Store Size:"
+du -sh $(pnpm store path) 2>/dev/null || echo "Store path not accessible"
 echo
 ```
 
@@ -680,6 +766,14 @@ else
     echo "❌ Analysis is not working"
 fi
 
+# Check PNPM environment
+echo "Checking PNPM environment..."
+if command -v pnpm &> /dev/null; then
+    echo "✅ PNPM is installed ($(pnpm --version))"
+else
+    echo "❌ PNPM is not installed"
+fi
+
 echo "Health check complete"
 ```
 
@@ -689,7 +783,7 @@ echo "Health check complete"
 
 1. **Run Diagnostic Scripts**: Use the provided scripts to collect system information
 2. **Check Logs**: Look for error messages in console output
-3. **Try Basic Solutions**: Restart application, clear caches, reinstall dependencies
+3. **Try Basic Solutions**: Restart application, clear caches, reinstall dependencies with PNPM
 4. **Reproduce Issue**: Document exact steps to reproduce the problem
 
 ### Information to Include
@@ -697,7 +791,8 @@ echo "Health check complete"
 When reporting issues, include:
 
 - Operating system and version
-- Node.js and Python versions
+- Node.js and PNPM versions (`node --version`, `pnpm --version`)
+- Python version (`python3 --version`)
 - Full error messages and stack traces
 - System information from diagnostic scripts
 - Steps to reproduce the issue
@@ -710,6 +805,7 @@ When reporting issues, include:
 - **Stack Overflow**: Search for similar issues
 - **Electron Community**: Electron-specific questions
 - **Hugging Face Forums**: AI/ML related questions
+- **PNPM GitHub**: PNPM-specific questions and issues
 
 ### Emergency Recovery
 
@@ -722,6 +818,9 @@ If the application is completely broken:
 rm -rf node_modules server/venv server/models
 rm -rf ~/.cache/huggingface
 rm -rf out/ dist/
+
+# Clear PNPM cache
+pnpm store prune
 
 # Reinstall from scratch
 pnpm install
@@ -740,4 +839,4 @@ pnpm dev
 
 3. **Contact Support**: If all else fails, create a detailed issue report with diagnostic information
 
-This troubleshooting guide should help resolve the vast majority of issues encountered with Open Stream. The key is to systematically work through the diagnostic steps and apply the appropriate solutions based on the specific symptoms observed.
+This troubleshooting guide should help resolve the vast majority of issues encountered with Open Stream. The key is to systematically work through the diagnostic steps and apply the appropriate solutions based on the specific symptoms observed. PNPM's efficient package management and caching can help resolve many dependency-related issues quickly.

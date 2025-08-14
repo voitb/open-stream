@@ -9,7 +9,7 @@ Open Stream uses Electron Builder for cross-platform desktop application packagi
 ### System Requirements
 
 **Development Machine**:
-- **Node.js 18+** with pnpm package manager
+- **Node.js 18+** with **PNPM package manager** (8.0+)
 - **Python 3.8-3.12** (for validation and testing)
 - **Git** for version control
 - **Platform-specific tools** (see Platform Requirements)
@@ -19,13 +19,36 @@ Open Stream uses Electron Builder for cross-platform desktop application packagi
 - **macOS**: 4GB RAM, macOS 10.15+
 - **Linux**: 4GB RAM, Modern distribution with glibc 2.17+
 
+### PNPM Installation and Configuration
+
+**Installing PNPM**:
+```bash
+# Install globally via npm (if not already installed)
+npm install -g pnpm@latest
+
+# Or via other methods:
+curl -fsSL https://get.pnpm.io/install.sh | sh  # Unix/macOS
+iwr https://get.pnpm.io/install.ps1 -useb | iex  # Windows PowerShell
+
+# Verify installation
+pnpm --version  # Should be 8.0+
+```
+
+**PNPM Configuration for Build**:
+```bash
+# Configure PNPM for optimal build performance
+pnpm config set store-dir ~/.pnpm-store
+pnpm config set network-timeout 300000
+pnpm config set fetch-retries 3
+```
+
 ### Platform-Specific Build Tools
 
 **Windows Development**:
 ```bash
 # Install Visual Studio Build Tools or Visual Studio Community
 # Required for native module compilation
-npm install -g windows-build-tools
+pnpm add -g windows-build-tools
 
 # Install NSIS for installer creation (optional - bundled)
 choco install nsis
@@ -113,7 +136,7 @@ asarUnpack:
 ### Local Development Builds
 
 ```bash
-# Type checking
+# Type checking with PNPM
 pnpm typecheck
 
 # Development build (unpackaged)
@@ -130,8 +153,8 @@ pnpm build && pnpm start
 # Clean previous builds
 rm -rf out/ dist/
 
-# Install dependencies
-pnpm install
+# Install dependencies using PNPM
+pnpm install --frozen-lockfile
 
 # Type checking and compilation
 pnpm typecheck
@@ -148,29 +171,29 @@ pnpm build:linux   # Linux (from Linux or cross-compile)
 **From macOS** (recommended for multi-platform):
 ```bash
 # Build all platforms
-electron-builder --mac --win --linux
+pnpm exec electron-builder --mac --win --linux
 
 # Specific platform targeting
-electron-builder --win --x64
-electron-builder --linux --x64
+pnpm exec electron-builder --win --x64
+pnpm exec electron-builder --linux --x64
 ```
 
 **From Windows**:
 ```bash
 # Windows native
-electron-builder --win
+pnpm exec electron-builder --win
 
 # Linux via Docker
-electron-builder --linux --x64
+pnpm exec electron-builder --linux --x64
 ```
 
 **From Linux**:
 ```bash
 # Linux native
-electron-builder --linux
+pnpm exec electron-builder --linux
 
 # Windows via Wine (complex setup)
-electron-builder --win
+pnpm exec electron-builder --win
 ```
 
 ## Python Backend Packaging
@@ -363,7 +386,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'pnpm'
+      
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+          run_install: false
+      
+      - name: Get PNPM store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+      
+      - name: Setup PNPM cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -371,7 +411,7 @@ jobs:
           python-version: '3.11'
       
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       
       - name: Build application
         run: pnpm build
@@ -385,6 +425,7 @@ jobs:
           else
             pnpm build:linux
           fi
+        shell: bash
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -398,7 +439,7 @@ jobs:
 **Release Strategy**:
 1. Tag release: `git tag v1.0.0`
 2. Push tag: `git push origin v1.0.0`
-3. GitHub Actions builds all platforms
+3. GitHub Actions builds all platforms using PNPM
 4. Artifacts uploaded to GitHub Releases
 5. Release notes generated automatically
 
@@ -440,7 +481,7 @@ repo: open-stream
 export CSC_LINK="path/to/certificate.p12"
 export CSC_KEY_PASSWORD="certificate-password"
 
-# Build with signing
+# Build with signing using PNPM
 pnpm build:win
 ```
 
@@ -451,7 +492,7 @@ export APPLE_ID="your@apple.id"
 export APPLE_ID_PASSWORD="app-specific-password"
 export CSC_NAME="Developer ID Application: Your Name"
 
-# Build with signing and notarization
+# Build with signing and notarization using PNPM
 pnpm build:mac
 ```
 
@@ -461,7 +502,7 @@ pnpm build:mac
 - Use exact dependency versions in `package.json`
 - Verify Python package integrity
 - Code signing for trusted distribution
-- Regular security audits: `npm audit`
+- Regular security audits: `pnpm audit`
 
 **Runtime Security**:
 - Context isolation enabled in renderer
@@ -496,14 +537,27 @@ python main.py 55555
 # Clean build artifacts
 rm -rf dist/ out/
 
-# Debug build process
+# Debug build process using PNPM
 DEBUG=electron-builder pnpm build:unpack
 
 # Check electron-builder logs
 cat ~/.electron-builder/debug.log
 ```
 
-**4. Platform-Specific Issues**:
+**4. PNPM-Specific Build Issues**:
+```bash
+# Clear PNPM store and cache
+pnpm store prune
+
+# Reinstall dependencies
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+
+# Check for native module rebuild requirements
+pnpm rebuild
+```
+
+**5. Platform-Specific Issues**:
 
 **Windows**:
 - Install Visual Studio Build Tools
@@ -522,13 +576,16 @@ cat ~/.electron-builder/debug.log
 
 ### Performance Optimization
 
-**Build Performance**:
+**Build Performance with PNPM**:
 ```bash
 # Parallel compilation
 pnpm typecheck:node & pnpm typecheck:web & wait
 
-# Incremental builds
-# TypeScript incremental compilation enabled in tsconfig
+# Use PNPM's concurrent execution
+pnpm run --parallel build:node build:web
+
+# Leverage PNPM's content-addressable store
+# Shared dependencies across projects save time
 ```
 
 **Distribution Size Optimization**:
@@ -536,6 +593,7 @@ pnpm typecheck:node & pnpm typecheck:web & wait
 - AI models downloaded at runtime
 - ASAR packaging for Electron assets
 - Tree shaking in Vite build
+- PNPM's efficient dependency resolution reduces bundle size
 
 ### Monitoring and Analytics
 
@@ -543,36 +601,92 @@ pnpm typecheck:node & pnpm typecheck:web & wait
 - Monitor build time across platforms
 - Track distribution file sizes
 - Monitor download statistics from GitHub Releases
+- PNPM install performance metrics
 
 **Runtime Telemetry** (Optional):
 - Crash reporting integration
 - Performance metrics collection
 - Feature usage analytics
 
+## PNPM-Specific Optimizations
+
+### Build Performance Improvements
+
+**PNPM Configuration for CI**:
+```bash
+# .github/workflows/build.yml additions
+- name: Configure PNPM
+  run: |
+    pnpm config set store-dir ~/.pnpm-store
+    pnpm config set network-timeout 300000
+    pnpm config set fetch-retries 3
+    pnpm config set registry https://registry.npmjs.org/
+```
+
+**Local Development Optimizations**:
+```bash
+# Configure PNPM for faster builds
+pnpm config set side-effects-cache true
+pnpm config set strict-peer-dependencies false
+
+# Use PNPM workspaces if expanding to monorepo
+# pnpm-workspace.yaml
+packages:
+  - 'apps/*'
+  - 'packages/*'
+```
+
+**Dependency Management Best Practices**:
+```json
+// package.json PNPM-specific optimizations
+{
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "sharp"
+    ],
+    "neverBuiltDependencies": [
+      "fsevents",
+      "swc"
+    ],
+    "peerDependencyRules": {
+      "ignoreMissing": ["@babel/core"],
+      "allowedVersions": {
+        "react": "19",
+        "typescript": "5"
+      }
+    }
+  }
+}
+```
+
 ## Deployment Checklist
 
 ### Pre-Release Validation
 
-- [ ] All TypeScript compilation passes
+- [ ] All TypeScript compilation passes with PNPM
 - [ ] Python server starts successfully
 - [ ] AI models load correctly
-- [ ] Cross-platform builds complete
+- [ ] Cross-platform builds complete using PNPM
 - [ ] Application launches on target platforms
 - [ ] Python dependency installation works
 - [ ] Model download and caching functions
 - [ ] IPC communication operates correctly
 - [ ] Error handling behaves as expected
+- [ ] PNPM audit passes security checks
 
 ### Release Process
 
 1. **Version Bump**: Update `package.json` version
 2. **Changelog**: Document new features and fixes
-3. **Tag Release**: `git tag v{version}`
-4. **Push Tag**: `git push origin v{version}`
-5. **Monitor CI**: Verify all platform builds succeed
-6. **Test Distributions**: Download and test each platform package
-7. **Publish Release**: Make GitHub release public
-8. **Announce**: Notify users of new version
+3. **Dependency Check**: Run `pnpm audit` and `pnpm outdated`
+4. **Tag Release**: `git tag v{version}`
+5. **Push Tag**: `git push origin v{version}`
+6. **Monitor CI**: Verify all platform builds succeed using PNPM
+7. **Test Distributions**: Download and test each platform package
+8. **Publish Release**: Make GitHub release public
+9. **Announce**: Notify users of new version
 
 ### Post-Release Monitoring
 
@@ -580,5 +694,6 @@ pnpm typecheck:node & pnpm typecheck:web & wait
 - Check download statistics and adoption
 - Track crash reports and error telemetry
 - Plan next release cycle improvements
+- Review PNPM performance metrics and optimizations
 
-This deployment guide ensures reliable, secure, and user-friendly distribution of the Open Stream application across all supported platforms while maintaining the sophisticated AI capabilities and multi-process architecture.
+This deployment guide ensures reliable, secure, and user-friendly distribution of the Open Stream application across all supported platforms while maintaining the sophisticated AI capabilities and multi-process architecture. PNPM's efficient package management provides faster builds, better dependency resolution, and improved security throughout the deployment pipeline.

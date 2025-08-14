@@ -4,10 +4,34 @@
 
 ### Prerequisites
 
-- **Node.js 18+** with pnpm package manager
+- **Node.js 18+** with **PNPM package manager**
 - **Python 3.8-3.12** (3.11 or 3.12 recommended for best compatibility)
 - **Git** for version control
 - **4-8GB RAM** for AI model operations
+
+### Package Manager Requirement
+
+**Important**: This project uses **PNPM** as the package manager. Do not use npm or yarn.
+
+**Installing PNPM**:
+```bash
+# Install PNPM globally
+npm install -g pnpm@latest
+
+# Or via other methods:
+curl -fsSL https://get.pnpm.io/install.sh | sh  # Unix/macOS
+iwr https://get.pnpm.io/install.ps1 -useb | iex  # Windows PowerShell
+
+# Verify installation
+pnpm --version  # Should be 8.0+
+```
+
+**Why PNPM?**
+- **Faster installations** - Up to 2x faster than npm
+- **Disk space efficiency** - Content-addressable storage saves space
+- **Better dependency resolution** - Strict, non-flat node_modules
+- **Monorepo support** - Built-in workspace features
+- **Enhanced security** - Better dependency isolation
 
 ### Initial Setup
 
@@ -16,7 +40,7 @@
 git clone <repository-url>
 cd open-stream
 
-# Install Node.js dependencies
+# Install Node.js dependencies with PNPM
 pnpm install
 
 # First-time setup (installs Python dependencies automatically)
@@ -79,6 +103,7 @@ open-stream/
 ├── build/                # Build resources and icons
 ├── out/                  # Compiled Electron code
 ├── resources/            # Application resources
+├── pnpm-lock.yaml        # PNPM lock file (DO NOT edit manually)
 └── docs/                 # Documentation files
 ```
 
@@ -89,6 +114,7 @@ open-stream/
 - **React 19.1.0**: UI library with latest features
 - **TypeScript 5.8.3**: Type safety and developer experience
 - **Vite 7.0.5**: Build tool and development server
+- **PNPM 8+**: Fast, efficient package manager
 - **ESLint + Prettier**: Code quality and formatting
 
 **Backend Development**:
@@ -102,7 +128,23 @@ open-stream/
 
 ### Setting Up Your Development Environment
 
-1. **Python Environment Verification**:
+1. **PNPM Installation and Verification**:
+```bash
+# Check PNPM version (should be 8.0+)
+pnpm --version
+
+# If not installed, install globally
+npm install -g pnpm@latest
+
+# Verify PNPM store location
+pnpm store path
+
+# Configure PNPM (optional optimizations)
+pnpm config set store-dir ~/.pnpm-store  # Custom store location
+pnpm config set auto-install-peers true   # Auto-install peer dependencies
+```
+
+2. **Python Environment Verification**:
 ```bash
 # Check Python version (should be 3.8+)
 python3 --version
@@ -114,7 +156,7 @@ python3 -m pip --version
 python3 -m venv test-env && rm -rf test-env
 ```
 
-2. **IDE Setup** (Recommended: VS Code):
+3. **IDE Setup** (Recommended: VS Code):
 ```bash
 # Install recommended extensions
 code --install-extension ms-python.python
@@ -123,7 +165,7 @@ code --install-extension esbenp.prettier-vscode
 code --install-extension dbaeumer.vscode-eslint
 ```
 
-3. **Environment Configuration**:
+4. **Environment Configuration**:
 ```bash
 # Optional: Set custom model cache directory
 export TRANSFORMERS_CACHE=/path/to/your/models
@@ -319,6 +361,22 @@ pnpm typecheck
 pnpm build:unpack
 ```
 
+**5. PNPM-Specific Issues**:
+```bash
+# Clear PNPM cache
+pnpm store prune
+
+# Reinstall dependencies
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+
+# Check PNPM configuration
+pnpm config list
+
+# Verify shamefully-hoist if needed for problematic packages
+echo 'shamefully-hoist=true' >> .npmrc
+```
+
 #### Debugging Tools
 
 **Frontend Debugging**:
@@ -387,6 +445,7 @@ logger.info("Processing request")
 - Use `pnpm dev:fast` to skip server setup
 - Implement code splitting for renderer
 - Enable TypeScript incremental compilation
+- Utilize PNPM's fast installation and linking
 
 **Model Development**:
 - Use smaller models during development
@@ -401,6 +460,11 @@ pnpm typecheck:node & pnpm typecheck:web & wait
 
 # Optimize Electron packaging
 # Use electron-builder.yml configuration
+
+# PNPM performance benefits
+# Content-addressable storage
+# Symlinked node_modules
+# Parallel dependency resolution
 ```
 
 ### Contributing Guidelines
@@ -426,6 +490,7 @@ git commit -m "feat: add emotion detection model"
 - [ ] Error handling is implemented
 - [ ] Performance impact is considered
 - [ ] Documentation is updated
+- [ ] PNPM commands are used consistently
 
 3. **Pre-commit Checks**:
 ```bash
@@ -436,6 +501,63 @@ pnpm format
 
 # Test basic functionality
 pnpm dev # Verify application starts
+```
+
+### PNPM Workspace Configuration
+
+#### Workspace Management
+
+```yaml
+# pnpm-workspace.yaml (if using workspaces)
+packages:
+  - 'packages/*'
+  - 'apps/*'
+```
+
+```json
+# package.json PNPM configuration
+{
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ],
+    "peerDependencyRules": {
+      "ignoreMissing": ["@babel/core"],
+      "allowedVersions": {
+        "react": "19"
+      }
+    }
+  }
+}
+```
+
+#### PNPM Commands Reference
+
+```bash
+# Dependency Management
+pnpm add <package>              # Add production dependency
+pnpm add -D <package>          # Add development dependency
+pnpm add -g <package>          # Add global package
+pnpm remove <package>          # Remove dependency
+pnpm update                    # Update dependencies
+
+# Project Management
+pnpm install                   # Install all dependencies
+pnpm install --frozen-lockfile # Install from lockfile only
+pnpm install --offline        # Install from cache only
+pnpm store prune              # Clean unused packages
+
+# Script Execution
+pnpm run <script>             # Run package script
+pnpm dev                      # Run development script
+pnpm <script>                 # Run script (shorthand)
+
+# Information
+pnpm list                     # List installed packages
+pnpm list --depth=0          # List top-level packages only
+pnpm why <package>           # Show why package is installed
+pnpm outdated                # Show outdated packages
 ```
 
 ### Environment Variables
@@ -455,6 +577,9 @@ PYTHONUNBUFFERED=1
 # Debug flags
 DEBUG_IPC=1
 DEBUG_PYTHON=1
+
+# PNPM configuration
+PNPM_HOME=~/.pnpm
 ```
 
 #### Production Configuration
@@ -472,7 +597,7 @@ DEBUG_PYTHON=0
 ### Next Steps for New Developers
 
 1. **First Week**: 
-   - Set up development environment
+   - Set up development environment with PNPM
    - Understand three-process architecture
    - Make simple UI changes
 
@@ -492,6 +617,7 @@ DEBUG_PYTHON=0
 - **OpenAPI Specification**: `../../openapi.yaml`
 - **Architecture Guide**: `../architecture/ARCHITECTURE.md`
 - **Deployment Guide**: `../deployment/DEPLOYMENT.md`
+- **PNPM Documentation**: [https://pnpm.io/](https://pnpm.io/)
 - **Hugging Face Models**: [https://huggingface.co/models](https://huggingface.co/models)
 - **Electron Documentation**: [https://electronjs.org/docs](https://electronjs.org/docs)
 - **FastAPI Documentation**: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com)
@@ -502,10 +628,12 @@ DEBUG_PYTHON=0
 - Check existing GitHub issues
 - Review application logs in console
 - Verify Python and Node.js versions
+- Ensure PNPM is properly installed and configured
 
 **Community Resources**:
 - Electron Discord community
 - FastAPI GitHub discussions
 - Hugging Face forums for AI/ML questions
+- PNPM GitHub discussions
 
-This development guide provides everything needed to contribute effectively to the Open Stream project. The modular architecture and clear separation of concerns make it easy to work on individual components while understanding the full system integration.
+This development guide provides everything needed to contribute effectively to the Open Stream project. The modular architecture and clear separation of concerns make it easy to work on individual components while understanding the full system integration. PNPM's efficient package management ensures fast, reliable dependency management throughout the development process.

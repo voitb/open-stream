@@ -15,7 +15,7 @@ servers:
     description: Local development server
     variables:
       port:
-        default: '55555'
+        default: "55555"
         description: Dynamic port assigned by Electron main process
 
 paths:
@@ -25,12 +25,12 @@ paths:
       description: Check server status and AI model availability
       operationId: healthCheck
       responses:
-        '200':
+        "200":
           description: Server is healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               examples:
                 healthy:
                   value:
@@ -47,7 +47,7 @@ paths:
         - Toxicity detection using BERT models
         - Sentiment analysis with confidence scoring
         - Optional emotion detection
-        
+
         Falls back to rule-based analysis if AI models are unavailable.
       operationId: analyzeText
       requestBody:
@@ -55,7 +55,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AnalyzeRequest'
+              $ref: "#/components/schemas/AnalyzeRequest"
             examples:
               positive_text:
                 value:
@@ -66,12 +66,12 @@ paths:
                   text: "You are stupid and worthless"
                   options: {}
       responses:
-        '200':
+        "200":
           description: Analysis completed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnalyzeResponse'
+                $ref: "#/components/schemas/AnalyzeResponse"
               examples:
                 safe_content:
                   value:
@@ -89,18 +89,18 @@ paths:
                     sentiment: "negative"
                     confidence: 0.92
                     ai_enabled: true
-        '422':
+        "422":
           description: Validation error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidationError'
-        '500':
+                $ref: "#/components/schemas/ValidationError"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /chat/process:
     post:
@@ -114,7 +114,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatRequest'
+              $ref: "#/components/schemas/ChatRequest"
             examples:
               normal_message:
                 value:
@@ -123,12 +123,12 @@ paths:
                   channel: "general"
                   timestamp: 1692345600
       responses:
-        '200':
+        "200":
           description: Chat message processed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChatResponse'
+                $ref: "#/components/schemas/ChatResponse"
               examples:
                 allowed_message:
                   value:
@@ -140,12 +140,12 @@ paths:
                     message_id: "msg_def456"
                     action: "timeout"
                     reason: "Toxic content detected"
-        '422':
+        "422":
           description: Validation error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ValidationError'
+                $ref: "#/components/schemas/ValidationError"
 
   /shutdown:
     post:
@@ -153,7 +153,7 @@ paths:
       description: Gracefully shutdown the Python server process
       operationId: shutdownServer
       responses:
-        '200':
+        "200":
           description: Shutdown initiated
           content:
             application/json:

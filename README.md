@@ -14,9 +14,25 @@ An AI-powered desktop application for content analysis and moderation, built wit
 
 ### Prerequisites
 
-- **Node.js 18+** with pnpm package manager
+- **Node.js 18+** with **PNPM package manager**
 - **Python 3.8-3.12** (3.11 or 3.12 recommended)
 - **4-8GB RAM** for AI model operations
+
+### Package Manager Requirement
+
+**Important**: This project uses **PNPM** as the package manager. Do not use npm or yarn.
+
+```bash
+# Install PNPM globally if not already installed
+npm install -g pnpm@latest
+
+# Or via other methods:
+curl -fsSL https://get.pnpm.io/install.sh | sh  # Unix/macOS
+iwr https://get.pnpm.io/install.ps1 -useb | iex  # Windows PowerShell
+
+# Verify installation
+pnpm --version  # Should be 8.0+
+```
 
 ### Installation & Development
 
@@ -25,7 +41,7 @@ An AI-powered desktop application for content analysis and moderation, built wit
 git clone <repository-url>
 cd open-stream
 
-# Install dependencies
+# Install dependencies with PNPM
 pnpm install
 
 # Start development environment
@@ -50,19 +66,19 @@ pnpm build:linux
 - **Frontend**: Electron + React 19.1.0 + TypeScript 5.8.3 + Vite
 - **Backend**: Python FastAPI + Uvicorn + Hugging Face Transformers
 - **AI Models**: BERT-based toxicity detection and sentiment analysis
-- **Build System**: Electron Builder + PNPM
+- **Build System**: Electron Builder + **PNPM**
 
 ## Documentation
 
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - **[📚 Documentation Overview](docs/README.md)** - Complete navigation of all documentation
-- **[🚀 Development Guide](docs/development/DEVELOPMENT.md)** - Set up your development environment
+- **[🚀 Development Guide](docs/development/DEVELOPMENT.md)** - Set up your development environment with PNPM
 - **[📖 API Reference](docs/api/API.md)** - Complete API documentation
 - **[🏗️ System Architecture](docs/architecture/ARCHITECTURE.md)** - Deep dive into the design
-- **[🚢 Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Build and distribution processes
+- **[🚢 Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Build and distribution processes using PNPM
 - **[⚡ Performance Optimization](docs/performance/PERFORMANCE.md)** - Performance tuning strategies
-- **[🔧 Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[🔧 Troubleshooting](docs/troubleshooting/TROUBLESHOOTING.md)** - Common issues and PNPM-specific solutions
 
 ## Project Structure
 
@@ -77,6 +93,7 @@ open-stream/
 │   ├── services/         # AI service modules
 │   └── requirements.txt  # Python dependencies
 ├── docs/                  # Documentation
+├── pnpm-lock.yaml        # PNPM lock file (DO NOT edit manually)
 └── build/                 # Build resources
 ```
 
@@ -88,7 +105,7 @@ open-stream/
 - [Python Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
 - [TypeScript Extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-typescript-next)
 
-### Available Commands
+### Available Commands (PNPM)
 
 ```bash
 # Development
@@ -104,6 +121,13 @@ pnpm format               # Prettier formatting
 # Building
 pnpm build                # Compile TypeScript
 pnpm build:unpack         # Build without packaging
+
+# Dependency Management
+pnpm install              # Install all dependencies
+pnpm add <package>        # Add production dependency
+pnpm add -D <package>     # Add development dependency
+pnpm update               # Update dependencies
+pnpm audit                # Security audit
 ```
 
 ## Architecture Overview
@@ -123,12 +147,29 @@ Communication flows securely through IPC channels with full type safety.
 - **Analysis Latency**: 100-500ms per request
 - **Memory Usage**: 2-5GB (including loaded AI models)
 
+## Why PNPM?
+
+This project uses PNPM for several key advantages:
+
+- **Faster installations** - Up to 2x faster than npm
+- **Disk space efficiency** - Content-addressable storage saves space
+- **Better dependency resolution** - Strict, non-flat node_modules structure
+- **Enhanced security** - Better dependency isolation
+- **Monorepo support** - Built-in workspace features
+- **Improved performance** - Parallel dependency resolution
+
 ## Contributing
 
-1. Read the [Development Guide](docs/development/DEVELOPMENT.md) for setup instructions
+1. Read the [Development Guide](docs/development/DEVELOPMENT.md) for PNPM setup instructions
 2. Review the [System Architecture](docs/architecture/ARCHITECTURE.md) to understand the design
 3. Check the [API Documentation](docs/api/API.md) for integration details
-4. Use the [Troubleshooting Guide](docs/troubleshooting/TROUBLESHOOTING.md) when issues arise
+4. Use the [Troubleshooting Guide](docs/troubleshooting/TROUBLESHOOTING.md) for PNPM-specific issues
+
+**Contributing Requirements**:
+- Use PNPM for all package management operations
+- Run `pnpm typecheck` before committing
+- Follow the established code style with `pnpm format`
+- Test changes with `pnpm dev`
 
 ## License
 
@@ -139,7 +180,8 @@ Communication flows securely through IPC channels with full type safety.
 - **GitHub Issues**: Technical problems and bug reports
 - **GitHub Discussions**: Feature requests and community Q&A
 - **Documentation**: Comprehensive guides in the `docs/` directory
+- **PNPM Support**: Check [PNPM documentation](https://pnpm.io/) for package manager issues
 
 ---
 
-**Built with** ❤️ **using cutting-edge AI and modern web technologies**
+**Built with** ❤️ **using cutting-edge AI and modern web technologies, powered by PNPM**

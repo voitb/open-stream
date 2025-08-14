@@ -1,6 +1,41 @@
 out
 dist
+build
+node_modules
+coverage
+.git
+.vscode
+.idea
+
+# Package managers
 pnpm-lock.yaml
-LICENSE.md
+yarn.lock
+package-lock.json
+
+# Config files
 tsconfig.json
 tsconfig.*.json
+*.config.js
+*.config.mjs
+*.config.ts
+vite.config.*
+vitest.config.*
+tailwind.config.*
+postcss.config.*
+electron-builder.yml
+
+# Documentation and legal
+LICENSE.md
+CHANGELOG.md
+*.md
+
+# Generated files
+*.d.ts
+*.min.js
+*.map
+
+# Environment files
+.env*
+
+# Logs
+*.log
